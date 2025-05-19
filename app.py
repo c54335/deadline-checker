@@ -16,7 +16,7 @@ LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 SHEET_ID = os.getenv("SHEET_ID")
-GSPREAD_JSON = os.getenv("GSPREAD_JSON")  # Google Service Account JSON content
+GSPREAD_JSON = os.getenv("GSPREAD_JSON")
 
 app = Flask(__name__)
 
@@ -24,14 +24,18 @@ line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 openai.api_key = OPENAI_API_KEY
 
-# Setup Google Sheet
+# Setup Google Sheet（使用 Render-friendly 方法）
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("gspread_cred.json", scope)
+if not GSPREAD_JSON:
+    raise ValueError("找不到 GSPREAD_JSON，請設定於環境變數中")
+creds = ServiceAccountCredentials.from_json_keyfile_dict(json.loads(GSPREAD_JSON), scope)
 client = gspread.authorize(creds)
+
+if not SHEET_ID:
+    raise ValueError("找不到 SHEET_ID，請設定於環境變數中")
 sheet = client.open_by_key(SHEET_ID).worksheet("履約主表")
 
 # Helper: parse GPT output
-
 def ask_gpt(text):
     prompt = f"""
 你是一個土木工程履約助理，請從以下語句中分析出：
