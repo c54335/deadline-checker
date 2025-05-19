@@ -30,6 +30,7 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(json.loads(GSPREAD_JSON
 client = gspread.authorize(creds)
 sheet = client.open_by_key(SHEET_ID).worksheet("履約主表")
 
+# Helper: parse GPT output
 def ask_gpt(text):
     prompt = f"""
 你是一個土木工程履約助理，請從以下語句中分析出：
@@ -51,31 +52,24 @@ def ask_gpt(text):
     except:
         return None
 
+# Webhook 接收器
 @app.route("/callback", methods=['POST'])
 def callback():
-    signature = request.headers.get('X-Line-Signature', '')
+    signature = request.headers['X-Line-Signature']
     body = request.get_data(as_text=True)
+
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
         abort(400)
+
     return 'OK'
 
+# 處理文字訊息
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     text = event.message.text
-
-    if event.source.type in ["group", "room"]:
-        if hasattr(event.message, "mention") and event.message.mention:
-            for mentionee in event.message.mention.mentionees:
-                if mentionee.is_self:
-                    break
-            else:
-                return
-        else:
-            return
-
-    if "@威威1號" not in text:
+    if "威威1號" not in text:
         return
 
     gpt_result = ask_gpt(text)
@@ -97,6 +91,7 @@ def handle_message(event):
         )
         return
 
+    # 尋找 Google Sheet 中的對應行
     data = sheet.get_all_records()
     matched = False
     for idx, row in enumerate(data):
@@ -120,4 +115,5 @@ def handle_message(event):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
 
