@@ -1,7 +1,6 @@
 import os
 import json
 import datetime
-import openai
 import gspread
 from flask import Flask, request, abort
 from dotenv import load_dotenv
@@ -9,6 +8,8 @@ from oauth2client.service_account import ServiceAccountCredentials
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
+from openai import OpenAI
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Load environment variables
 load_dotenv()
@@ -42,15 +43,13 @@ def ask_gpt(text):
 {{"案名": "南區開口工程", "工作項目": "提送工程預算書圖", "動作": "提送", "日期": "2025-03-05"}}
 語句：{text}
 """
-    response = openai.ChatCompletion.create(
+
+    chat_completion = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[{"role": "user", "content": prompt}],
         temperature=0
     )
-    try:
-        return json.loads(response.choices[0].message.content.strip())
-    except:
-        return None
+    return json.loads(chat_completion.choices[0].message.content.strip())
 
 # Webhook 接收器
 @app.route("/callback", methods=['POST'])
