@@ -4,5 +4,3 @@ openai
 gspread
 oauth2client
 python-dotenv
-
-pip install -r requirements.txt
