@@ -9,7 +9,6 @@ from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
 from openai import OpenAI
-client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Load environment variables
 load_dotenv()
@@ -19,19 +18,21 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 SHEET_ID = os.getenv("SHEET_ID")
 GSPREAD_JSON = os.getenv("GSPREAD_JSON")  # Google Service Account JSON content
 
+# Initialize Flask and LINE
 app = Flask(__name__)
-
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
-openai.api_key = OPENAI_API_KEY
+
+# Initialize OpenAI Client
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Setup Google Sheet
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds = ServiceAccountCredentials.from_json_keyfile_dict(json.loads(GSPREAD_JSON), scope)
-client = gspread.authorize(creds)
-sheet = client.open_by_key(SHEET_ID).worksheet("履約主表")
+gs_client = gspread.authorize(creds)
+sheet = gs_client.open_by_key(SHEET_ID).worksheet("履約主表")
 
-# Helper: parse GPT output
+# GPT Helper
 def ask_gpt(text):
     prompt = f"""
 你是一個土木工程履約助理，請從以下語句中分析出：
@@ -43,8 +44,7 @@ def ask_gpt(text):
 {{"案名": "南區開口工程", "工作項目": "提送工程預算書圖", "動作": "提送", "日期": "2025-03-05"}}
 語句：{text}
 """
-
-    chat_completion = client.chat.completions.create(
+    chat_completion = openai_client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[{"role": "user", "content": prompt}],
         temperature=0
@@ -71,11 +71,12 @@ def handle_message(event):
     if "威威1號" not in text:
         return
 
-    gpt_result = ask_gpt(text)
-    if not gpt_result:
+    try:
+        gpt_result = ask_gpt(text)
+    except Exception as e:
         line_bot_api.reply_message(
             event.reply_token,
-            TextSendMessage(text="⚠️ 無法理解這句話，請再試一次")
+            TextSendMessage(text=f"⚠️ GPT 發生錯誤：{e}")
         )
         return
 
@@ -111,8 +112,7 @@ def handle_message(event):
             TextSendMessage(text=f"❌ 找不到對應的工作項目『{item}』")
         )
 
+# 執行主程式
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
-
-
